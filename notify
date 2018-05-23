@@ -1,0 +1,93 @@
+#!/usr/bin/perl -w
+#
+# script for nagios notify via Jabber / Google Talk Instant Messaging
+#   using XMPP protocol and SASL PLAIN authentication.
+#
+# author: Andrew Elwell <A.Elwell@physics.gla.ac.uk>
+# based on work by Thus0 <Thus0@free.fr> and  David Cox
+#
+# released under the terms of the GNU General Public License v2
+# Copyright 2007 Andrew Elwell.
+
+# taken from http://www.gridpp.ac.uk/wiki/Nagios_jabber_notification
+
+
+use strict;
+use Net::XMPP;
+
+#------------------------------------
+
+# Configuration :
+
+my $username = "googleusername";
+my $password = "password";
+
+#------------------------------------
+
+# Jabber parameters :
+
+my $hostname = 'talk.google.com';
+my $port = 5222;
+my $componentname = 'gmail.com';
+my $connectiontype = 'tcpip';
+my $tls = 1;
+my $ssl = 0;
+
+#------------------------------------
+
+
+
+my $len = scalar @ARGV;
+if ($len ne 2) {
+   die "Usage...\n $0 [jabberid] [message]\n";
+}
+
+my $Connection = new Net::XMPP::Client(2, "stdout");
+
+print "Connecting\n";
+
+# Connect to the server
+my $status = $Connection->Connect(
+       hostname => $hostname, port => $port,
+       componentname => $componentname,
+       connectiontype => $connectiontype, tls => $tls, ssl => $ssl);
+
+if (!(defined($status))) {
+   print STDERR "ERROR:  XMPP connection failed.\n";
+   print STDERR "        ($!)\n";
+   exit(0);
+}
+
+print "Connected\n";
+
+# Change hostname
+my $sid = $Connection->{SESSION}->{id};
+$Connection->{STREAM}->{SIDS}->{$sid}->{hostname} = $componentname;
+
+print "Changed\n";
+
+# Authenticate
+my @result = $Connection->AuthSend(
+       username => $username, password => $password,
+       resource => 'record');
+
+if ($result[0] ne "ok") {
+   print STDERR "ERROR: Authorization failed: $result[0] - $result[1]\n";
+   exit(0);
+}
+
+my $message=$ARGV[1];
+my $find="br /";
+my $replace="\n";
+$message =~ s/\Q$find\E/$replace/g;
+
+
+# Send messages
+$Connection->PresenceSend();
+$Connection->Subscription(type=>"subscribe", to=>$ARGV[0]);
+$Connection->MessageSend(
+        to       => $ARGV[0],
+        resource => 'record',
+        type     => "chat",
+        body     => $message);
+

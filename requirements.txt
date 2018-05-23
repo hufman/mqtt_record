@@ -1,0 +1,2 @@
+paho-mqtt==1.1
+pfycat==0.0.1
